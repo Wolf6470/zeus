@@ -1959,7 +1959,44 @@ const HTML_TEMPLATES = {
             }
         }
     </script>
-    <style>body { font-family: 'Vazirmatn', sans-serif; }</style>
+    <style>
+        body { font-family: 'Vazirmatn', sans-serif; }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f3f4f6; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+
+        .dark ::-webkit-scrollbar-track {
+            background: #080b0f; 
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #1c2330; 
+        }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #2d3748;
+        }
+        
+        /* استایل اسکرول‌بار برای مرورگر فایرفاکس */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: #d1d5db #f3f4f6;
+        }
+        .dark * {
+            scrollbar-color: #1c2330 #080b0f;
+        }
+    </style>
 </head>
 <body class="bg-gray-50 text-gray-900 dark:bg-amoled-bg dark:text-zinc-100 min-h-screen transition-colors duration-200">
 
@@ -3261,7 +3298,7 @@ const HTML_TEMPLATES = {
                 window.location.reload();
             }
         }
-const CURRENT_VERSION = '1.2.6';
+const CURRENT_VERSION = '1.2.7';
 
 		async function checkForUpdates(isManual = false) {
             try {
