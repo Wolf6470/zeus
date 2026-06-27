@@ -6,6 +6,7 @@ import { connect } from 'cloudflare:sockets';
 const GLOBAL_TRAFFIC_CACHE = new Map();
 const ACTIVE_CONNECTIONS_COUNT = new Map();
 const GLOBAL_LAST_ACTIVE_WRITE = new Map();
+const GLOBAL_LAST_DB_WRITE = new Map();
 const DNS_CACHE = new Map();
 
 // ==========================================================
@@ -733,37 +734,36 @@ async function handleVLESS(env, storedData = null, ctx = null) {
 
   function addBytes(bytes) {
     if (bytes <= 0 || !username) return;
-    
+
     let current = GLOBAL_TRAFFIC_CACHE.get(username) || 0;
-    current += bytes;
-    
+    GLOBAL_TRAFFIC_CACHE.set(username, current + bytes);
     GLOBAL_LAST_ACTIVE_WRITE.set(username, Date.now());
-    
-    const threshold = 50 * 1024 * 1024;
-    if (current >= threshold) { 
-      const chunksOf50MB = Math.floor(current / threshold);
-      const bytesToCommit = chunksOf50MB * threshold;
-      const deltaGb = bytesToCommit / (1024 * 1024 * 1024);
-      const leftover = current - bytesToCommit;
-      
-      GLOBAL_TRAFFIC_CACHE.set(username, leftover); 
 
-      const writeTask = async () => {
-        try {
-          await env.DB.prepare("UPDATE users SET used_gb = used_gb + ? WHERE username = ?").bind(deltaGb, username).run();
-        } catch (e) {
-          let recovered = GLOBAL_TRAFFIC_CACHE.get(username) || 0;
-          GLOBAL_TRAFFIC_CACHE.set(username, recovered + bytesToCommit);
-        }
-      };
+    let lastDbWrite = GLOBAL_LAST_DB_WRITE.get(username) || 0;
+    let now = Date.now();
+    let thresholdBytes = 10 * 1024 * 1024;
 
-      if (ctx) {
-        ctx.waitUntil(writeTask());
-      } else {
-        writeTask();
-      }
-    } else {
-      GLOBAL_TRAFFIC_CACHE.set(username, current);
+    if (current >= thresholdBytes || (current > 0 && now - lastDbWrite > 60000)) {
+        let toCommit = GLOBAL_TRAFFIC_CACHE.get(username) || 0;
+        if (toCommit <= 0) return;
+
+        GLOBAL_TRAFFIC_CACHE.set(username, 0);
+        GLOBAL_LAST_DB_WRITE.set(username, now);
+
+        let deltaGb = toCommit / (1024 * 1024 * 1024);
+
+        let writeTask = async () => {
+            try {
+                await env.DB.prepare("UPDATE users SET used_gb = used_gb + ? WHERE username = ?").bind(deltaGb, username).run();
+            } catch (e) {
+                let recovered = GLOBAL_TRAFFIC_CACHE.get(username) || 0;
+                GLOBAL_TRAFFIC_CACHE.set(username, recovered + toCommit);
+                GLOBAL_LAST_DB_WRITE.set(username, 0);
+            }
+        };
+
+        if (ctx) ctx.waitUntil(writeTask());
+        else writeTask();
     }
   }
 
@@ -907,7 +907,7 @@ async function handleVLESS(env, storedData = null, ctx = null) {
     await addBytes(bytes);
 
     if (isDnsQuery) {
-      await forwardVlessUDP(chunk, serverSock, null);
+      await forwardVlessUDP(chunk, serverSock, null, addBytes);
       return;
     }
 
@@ -994,7 +994,7 @@ async function handleVLESS(env, storedData = null, ctx = null) {
         if (cmd === 2) {
           if (port === 53) {
             isDnsQuery = true;
-            await forwardVlessUDP(rawData, serverSock, respHeader);
+            await forwardVlessUDP(rawData, serverSock, respHeader, addBytes);
           } else {
             serverSock.close();
           }
@@ -1691,7 +1691,7 @@ async function connectDirect(address, port, initialData = null) {
   }
 }
 
-async function forwardVlessUDP(udpChunk, webSocket, respHeader) {
+async function forwardVlessUDP(udpChunk, webSocket, respHeader, onBytes) {
   const requestData = convertToUint8Array(udpChunk);
   try {
     const tcpSocket = connect({ hostname: '8.8.4.4', port: 53 });
@@ -1703,6 +1703,7 @@ async function forwardVlessUDP(udpChunk, webSocket, respHeader) {
     await tcpSocket.readable.pipeTo(new WritableStream({
       async write(chunk) {
         const response = convertToUint8Array(chunk);
+        if (typeof onBytes === 'function') onBytes(response.byteLength);
         if (webSocket.readyState !== WebSocket.OPEN) return;
         if (vlessHeader) {
           const merged = new Uint8Array(vlessHeader.length + response.byteLength);
@@ -1951,7 +1952,7 @@ const HTML_TEMPLATES = {
             <div class="flex flex-col sm:flex-row sm:items-center gap-3">
                 <h1 class="text-lg font-bold flex items-center gap-2" dir="ltr">
                     ZEUS Panel 
-                    <span id="panel-version" class="text-xs px-2 py-0.5 font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 rounded-full">v1.2.4</span>
+                    <span id="panel-version" class="text-xs px-2 py-0.5 font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 rounded-full">v1.2.5</span>
                 </h1>
                 <div class="flex items-center gap-3 bg-gray-100 dark:bg-zinc-800/60 px-3 py-1.5 rounded-full border border-gray-200 dark:border-zinc-800/80 shadow-sm flex-shrink-0 w-fit">
                     <a href="https://github.com/IR-NETLIFY/zeus" target="_blank" rel="noopener noreferrer" class="text-gray-700 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-all transform hover:scale-125 duration-200 flex-shrink-0" title="گیت‌هاب">
@@ -3244,7 +3245,7 @@ const HTML_TEMPLATES = {
                 window.location.reload();
             }
         }
-const CURRENT_VERSION = '1.2.4';
+const CURRENT_VERSION = '1.2.5';
 
 		async function checkForUpdates(isManual = false) {
             try {
