@@ -17,7 +17,7 @@ export default {
 				const accRes = await fetch("https://api.cloudflare.com/client/v4/accounts", { headers });
 				const accData = await accRes.json();
 				if (!accData.success || accData.result.length === 0) {
-					throw new Error("اکانتی یافت نشد. از صحت توکن مطمئن شوید.");
+					throw new Error("فقط با دکمه نارنجی توکن بسازید.");
 				}
 				const accountId = accData.result[0].id;
 				let devSub = null;
