@@ -25,7 +25,7 @@
   
   <p>
     <a href="https://github.com/IR-NETLIFY/zeus">
-      <img src="https://img.shields.io/badge/Version-1.6.8-0052CC?style=for-the-badge&logo=semver&logoColor=white" alt="Version">
+      <img src="https://img.shields.io/badge/Version-1.7.4-0052CC?style=for-the-badge&logo=semver&logoColor=white" alt="Version">
     </a>
     <a href="https://cloudflare.com">
       <img src="https://img.shields.io/badge/Platform-Cloudflare_Workers-F38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Platform">
