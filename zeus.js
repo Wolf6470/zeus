@@ -2950,72 +2950,71 @@ const HTML_TEMPLATES = {
                 </button>
             </div>
             <form id="create-user-form" class="p-6 space-y-5 overflow-y-auto flex-1 overscroll-contain" style="-webkit-overflow-scrolling: touch; transform: translate3d(0,0,0); will-change: scroll-position, transform;" onsubmit="handleFormSubmit(event)">
-                <div class="space-y-4">
+                <div class="space-y-2.5">
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 dark:text-zinc-400 mb-2 uppercase tracking-wider">نام کاربری</label>
+                        <label class="block text-[11px] font-bold text-gray-500 dark:text-zinc-400 mb-1 uppercase tracking-wider">نام کاربری</label>
                         <div class="relative">
-                            <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-gray-400">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                            <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                             </span>
-                            <input type="text" id="input-name" placeholder="ali" maxlength="32" class="w-full pl-3 pr-10 py-2.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-sm font-semibold text-gray-800 dark:text-zinc-100 placeholder-gray-400/80 transition" required>
+                            <input type="text" id="input-name" placeholder="ali" maxlength="32" class="w-full pl-3 pr-9 py-1.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-semibold text-gray-800 dark:text-zinc-100 placeholder-gray-400/80 transition" required>
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                         <div>
-                            <label class="block text-[10px] sm:text-xs font-bold text-gray-500 dark:text-zinc-400 mb-2 uppercase tracking-wider">حجم (GB)</label>
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1 uppercase tracking-wider">حجم (GB)</label>
                             <div class="relative">
-                                <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-gray-400">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                                 </span>
-                                <input type="number" id="input-limit" min="0" step="any" placeholder="نامحدود" class="w-full pl-3 pr-10 py-2.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-sm font-semibold text-gray-800 dark:text-zinc-100 placeholder-gray-400/80 transition">
+                                <input type="number" id="input-limit" min="0" step="any" placeholder="نامحدود" class="w-full pl-3 pr-9 py-1.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-semibold text-gray-800 dark:text-zinc-100 placeholder-gray-400/80 transition">
                             </div>
                         </div>
                         <div>
-                            <label class="block text-[10px] sm:text-xs font-bold text-gray-500 dark:text-zinc-400 mb-2 uppercase tracking-wider">اعتبار (روز)</label>
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1 uppercase tracking-wider">اعتبار (روز)</label>
                             <div class="relative">
-                                <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-gray-400">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 </span>
-                                <input type="number" id="input-expiry" min="0" placeholder="نامحدود" class="w-full pl-3 pr-10 py-2.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-sm font-semibold text-gray-800 dark:text-zinc-100 placeholder-gray-400/80 transition">
+                                <input type="number" id="input-expiry" min="0" placeholder="نامحدود" class="w-full pl-3 pr-9 py-1.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-semibold text-gray-800 dark:text-zinc-100 placeholder-gray-400/80 transition">
                             </div>
                         </div>
                         <div>
-                            <label class="block text-[10px] sm:text-xs font-bold text-gray-500 dark:text-zinc-400 mb-2 uppercase tracking-wider">سقف ریکوئست</label>
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1 uppercase tracking-wider">سقف ریکوئست</label>
                             <div class="relative">
-                                <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-gray-400">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                                 </span>
-                                <input type="number" id="input-req-limit" min="0" placeholder="نامحدود" class="w-full pl-3 pr-10 py-2.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-sm font-semibold text-gray-800 dark:text-zinc-100 placeholder-gray-400/80 transition">
+                                <input type="number" id="input-req-limit" min="0" placeholder="نامحدود" class="w-full pl-3 pr-9 py-1.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-semibold text-gray-800 dark:text-zinc-100 placeholder-gray-400/80 transition">
                             </div>
                         </div>
                         <div>
-                            <label class="block text-[10px] sm:text-xs font-bold text-gray-500 dark:text-zinc-400 mb-2 uppercase tracking-wider">محدودیت کاربر</label>
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1 uppercase tracking-wider">محدودیت کاربر</label>
                             <div class="relative">
-                                <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-gray-400">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                                 </span>
-                                <input type="number" id="input-ip-limit" min="0" placeholder="نامحدود" class="w-full pl-3 pr-10 py-2.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-sm font-semibold text-gray-800 dark:text-zinc-100 placeholder-gray-400/80 transition">
+                                <input type="number" id="input-ip-limit" min="0" placeholder="نامحدود" class="w-full pl-3 pr-9 py-1.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-semibold text-gray-800 dark:text-zinc-100 placeholder-gray-400/80 transition">
                             </div>
                         </div>
                     </div>
                 </div>
-<div class="mt-4 pt-4 border-t border-gray-100 dark:border-zinc-900">
-    <div class="flex items-center justify-between mb-3">
-        <span class="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">تنظیمات فرگمنت</span>
-        <label class="relative inline-flex items-center cursor-pointer select-none">
+<div class="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-zinc-900">
+    <div class="flex items-center justify-between mb-1.5">
+        <span class="text-[11px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">تنظیمات فرگمنت</span>
+        <label class="relative inline-flex items-center cursor-pointer scale-90 select-none">
             <input type="checkbox" id="input-frag-toggle" onchange="toggleFragInputs(this.checked)" class="sr-only peer">
-            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-600"></div>
-            <span class="mr-3 text-sm font-bold text-gray-700 dark:text-zinc-300"></span>
+            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-green-600"></div>
         </label>
     </div>
-    <div id="frag-inputs-container" class="grid grid-cols-2 gap-4 hidden transition-all duration-300 mt-3">
+    <div id="frag-inputs-container" class="grid grid-cols-2 gap-2.5 hidden transition-all duration-300 mt-1.5">
         <div>
-            <label class="block text-[10px] sm:text-xs font-bold text-gray-500 dark:text-zinc-400 mb-2 uppercase tracking-wider">Fragment Length</label>
-            <input type="text" id="input-frag-len" placeholder="200-3000" value="200-3000" dir="ltr" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-sm font-mono text-center text-gray-800 dark:text-zinc-100 transition">
+            <label class="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1 uppercase tracking-wider">Fragment Length</label>
+            <input type="text" id="input-frag-len" placeholder="200-3000" value="200-3000" dir="ltr" class="w-full px-2 py-1.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-mono text-center text-gray-800 dark:text-zinc-100 transition">
         </div>
         <div>
-            <label class="block text-[10px] sm:text-xs font-bold text-gray-500 dark:text-zinc-400 mb-2 uppercase tracking-wider">Fragment Interval</label>
-            <input type="text" id="input-frag-int" placeholder="1-2" value="1-2" dir="ltr" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-sm font-mono text-center text-gray-800 dark:text-zinc-100 transition">
+            <label class="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1 uppercase tracking-wider">Fragment Interval</label>
+            <input type="text" id="input-frag-int" placeholder="1-2" value="1-2" dir="ltr" class="w-full px-2 py-1.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-mono text-center text-gray-800 dark:text-zinc-100 transition">
         </div>
     </div>
 </div>
@@ -3124,15 +3123,15 @@ const HTML_TEMPLATES = {
                             </div>
                         </div>
                     </div>
-						<div class="grid grid-cols-2 gap-2 mt-3">
-    						<div class="flex items-center justify-between bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl p-2 shadow-sm">
+						<div class="grid grid-cols-2 gap-2 mt-2">
+    						<div class="flex items-center justify-between bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-1.5 shadow-sm">
     						    <span class="text-[10px] sm:text-xs font-semibold text-gray-700 dark:text-zinc-300 whitespace-nowrap pl-1">NSFW Blacker</span>
     						    <label class="relative inline-flex items-center cursor-pointer scale-[0.65] sm:scale-75 origin-left">
     						        <input type="checkbox" id="input-block-porn" class="sr-only peer">
     						        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-700"></div>
     						    </label>
     						</div>
-    						<div class="flex items-center justify-between bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl p-2 shadow-sm">
+    						<div class="flex items-center justify-between bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-1.5 shadow-sm">
     						    <span class="text-[10px] sm:text-xs font-semibold text-gray-700 dark:text-zinc-300 whitespace-nowrap pl-1">ADS blocker</span>
     						    <label class="relative inline-flex items-center cursor-pointer scale-[0.65] sm:scale-75 origin-left">
     						        <input type="checkbox" id="input-block-ads" class="sr-only peer">
@@ -5345,7 +5344,7 @@ window.filterLocations = function() {
                 window.location.reload();
             }
         }
-const CURRENT_VERSION = '1.7.3';
+const CURRENT_VERSION = '1.7.4';
 const UPDATE_FIX = "constsCURRENT_VERSION='d.d.d'";
 		async function checkForUpdates(isManual = false) {
             try {
