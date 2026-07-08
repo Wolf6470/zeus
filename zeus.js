@@ -10,11 +10,11 @@ let GLOBAL_REQ_COUNT = 0;
 let GLOBAL_LAST_REQ_WRITE = 0;
 const DNS_CACHE_TTL = 5 * 60 * 1000;
 const DOH_RESOLVER = "https://cloudflare-dns.com/dns-query";
-const UPSTREAM_BUNDLE_TARGET_BYTES = 16 * 1024;
-const UPSTREAM_QUEUE_MAX_BYTES = 16 * 1024 * 1024;
+const UPSTREAM_BUNDLE_TARGET_BYTES = 8 * 1024;
+const UPSTREAM_QUEUE_MAX_BYTES = 4 * 1024 * 1024;
 const UPSTREAM_QUEUE_MAX_ITEMS = 4096;
-const DOWNSTREAM_GRAIN_BYTES = 32 * 1024;
-const DOWNSTREAM_GRAIN_TAIL_THRESHOLD = 512;
+const DOWNSTREAM_GRAIN_BYTES = 16 * 1024;
+const DOWNSTREAM_GRAIN_TAIL_THRESHOLD = 256;
 const DOWNSTREAM_GRAIN_SILENT_MS = 1;
 const TCP_CONCURRENCY = 2;
 const PRELOAD_RACE_DIAL = true;
@@ -1115,7 +1115,7 @@ async function handleVLESS(env, storedData = null, ctx = null, request = null) {
 					}
 					const now = Date.now();
 					const lastRecorded = GLOBAL_LAST_ACTIVE_WRITE.get(username) || 0;
-					if (now - lastRecorded > 120000 || updatedActiveIps !== null) {
+					if (now - lastRecorded > 35000 || updatedActiveIps !== null) {
 						GLOBAL_LAST_ACTIVE_WRITE.set(username, now);
 						if (updatedActiveIps !== null) {
 							await env.DB.prepare("UPDATE users SET last_active = ?, active_ips = ? WHERE username = ?").bind(now, updatedActiveIps, username).run();
@@ -1128,7 +1128,7 @@ async function handleVLESS(env, storedData = null, ctx = null, request = null) {
 		} else {
 			clearInterval(heartbeat);
 		}
-	}, 120000);
+	}, 35000);
 	let remoteConnWrapper = { socket: null, connectingPromise: null, retryConnect: null };
 	let reqUUID = null;
 	let isHeaderParsed = false;
@@ -1325,6 +1325,28 @@ async function handleVLESS(env, storedData = null, ctx = null, request = null) {
 				}
 				const rawData = chunkBuffer.slice(offset);
 				const respHeader = new Uint8Array([chunkBuffer[0], 0]);
+				
+				if ((user.block_ads === 1 || user.block_porn === 1) && addrType === 2 && port !== 53) {
+					try {
+						const dnsCheck = await dohQuery(addr, "A", targetDoh);
+						const isBlocked = dnsCheck.some(r => r.data === "0.0.0.0" || r.data === "::" || r.data === "176.103.130.130");
+						if (isBlocked) {
+							serverSock.close();
+							return;
+						}
+					} catch (e) {}
+				}
+
+				if (cmd === 2) {
+					if (port === 53) {
+						isDnsQuery = true;
+						await forwardVlessUDP(rawData, serverSock, respHeader, addBytes, targetDns);
+					} else {
+						serverSock.close();
+					}
+					return;
+				}
+				
 				if (cmd === 2) {
 					if (port === 53) {
 						isDnsQuery = true;
@@ -1929,7 +1951,7 @@ function createDownstreamSender(webSocket, headerData = null) {
 async function waitForBackpressure(ws) {
 	if (typeof ws.bufferedAmount === "number") {
 		let maxAttempts = 150;
-		while (ws.bufferedAmount > 256 * 1024 && maxAttempts > 0) {
+		while (ws.bufferedAmount > 1024 * 1024 && maxAttempts > 0) { 
 			if (ws.readyState !== WebSocket.OPEN) break;
 			await new Promise((r) => setTimeout(r, 20));
 			maxAttempts--;
@@ -2020,7 +2042,7 @@ async function connectDirect(address, port, initialData = null, targetDoh = "htt
 	const candidates = raceCandidates || Array.from({ length: TCP_CONCURRENCY }, () => ({ hostname: address, port }));
 	const openConnection = async (host, prt) => {
 		const socket = connect({ hostname: host, port: prt });
-		await Promise.race([socket.opened, new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 1000))]);
+		await Promise.race([socket.opened, new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2000))]);
 		return socket;
 	};
 	if (candidates.length === 1) {
@@ -2689,6 +2711,12 @@ const HTML_TEMPLATES = {
         .dark * {
             scrollbar-color: #1c2330 #080b0f;
         }
+        @media (min-width: 769px) {
+            header, main { zoom: 1.20; }
+        }
+        @media (max-width: 768px) {
+            header, main { zoom: 0.70; }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 dark:bg-amoled-bg dark:text-zinc-100 min-h-screen transition-colors duration-200">
@@ -2907,7 +2935,8 @@ const HTML_TEMPLATES = {
                 <thead>
                     <tr class="bg-gray-100 dark:bg-zinc-900/50 border-b border-gray-200 dark:border-amoled-border text-xs text-gray-500 dark:text-gray-400 text-center">
                         <th class="p-2 w-10 text-center"><input type="checkbox" id="select-all-users" onchange="toggleSelectAllUsers(this)" class="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-zinc-700 text-blue-600 bg-white dark:bg-zinc-800 checked:bg-blue-600 checked:border-blue-600 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"></th>
-                        <th class="p-4">نام کاربر و عملیات</th>
+                        <th class="p-2 border-r border-gray-200 dark:border-zinc-800">نام کاربری و وضعیت</th>
+                        <th class="p-2 border-r border-gray-200 dark:border-zinc-800">عملیات</th>
                         <th class="p-2 border-r border-gray-200 dark:border-zinc-800">لینک ساب</th>
                         <th class="p-2 border-r border-gray-200 dark:border-zinc-800">پورت</th>
                         <th class="p-2 border-r border-gray-200 dark:border-zinc-800">حجم</th>
@@ -3026,53 +3055,86 @@ const HTML_TEMPLATES = {
                         </div>
                     </div>
                 </div>
-<div class="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-zinc-900">
-    <div class="flex items-center justify-between mb-1.5">
-        <span class="text-[11px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">تنظیمات فرگمنت</span>
-        <label class="relative inline-flex items-center cursor-pointer scale-90 select-none">
-            <input type="checkbox" id="input-frag-toggle" onchange="toggleFragInputs(this.checked)" class="sr-only peer">
-            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-green-600"></div>
-        </label>
-    </div>
-    <div id="frag-inputs-container" class="grid grid-cols-2 gap-2.5 hidden transition-all duration-300 mt-1.5">
-        <div>
-            <label class="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1 uppercase tracking-wider">Fragment Length</label>
-            <input type="text" id="input-frag-len" placeholder="200-3000" value="200-3000" dir="ltr" class="w-full px-2 py-1.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-mono text-center text-gray-800 dark:text-zinc-100 transition">
+<div class="grid grid-cols-2 gap-3 mt-4">
+    <div class="p-3 bg-gray-50/50 dark:bg-zinc-900/20 border border-gray-200/60 dark:border-zinc-800 rounded-2xl shadow-sm">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Fragment</span>
+            <label class="relative inline-flex items-center cursor-pointer select-none">
+                <input type="checkbox" id="input-frag-toggle" onchange="toggleFragInputs(this.checked)" class="sr-only peer">
+                <div class="w-9 h-5 bg-gray-200 rounded-full peer dark:bg-zinc-700 peer-checked:bg-green-600 transition-colors after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:-translate-x-[18px]"></div>
+            </label>
         </div>
-        <div>
-            <label class="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1 uppercase tracking-wider">Fragment Interval</label>
-            <input type="text" id="input-frag-int" placeholder="1-2" value="1-2" dir="ltr" class="w-full px-2 py-1.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-mono text-center text-gray-800 dark:text-zinc-100 transition">
+        <div id="frag-inputs-container" class="grid grid-cols-2 gap-1.5 hidden transition-all duration-300">
+            <input type="text" id="input-frag-len" placeholder="Len" value="200-3000" dir="ltr" class="w-full px-1.5 py-1 bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-[10px] font-mono text-center text-gray-800 dark:text-zinc-100">
+            <input type="text" id="input-frag-int" placeholder="Int" value="1-2" dir="ltr" class="w-full px-1.5 py-1 bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-[10px] font-mono text-center text-gray-800 dark:text-zinc-100">
+        </div>
+    </div>
+
+    <div class="p-3 bg-gray-50/50 dark:bg-zinc-900/20 border border-gray-200/60 dark:border-zinc-800 rounded-2xl shadow-sm">
+        <label class="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1.5 uppercase tracking-wider">Fingerprint</label>
+        <div class="relative">
+            <select id="fingerprint-select" class="w-full px-2 py-1.5 bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 text-[10px] font-semibold text-gray-700 dark:text-zinc-300 cursor-pointer appearance-none">
+                <option value="chrome">🌐 Chrome</option>
+				<option value="firefox">🦊 Firefox</option>
+				<option value="safari">🧭 Safari</option>
+				<option value="ios" selected>📱 iOS (Def)</option>
+				<option value="android">🤖 Android</option>
+				<option value="edge">🌀 Edge</option>
+				<option value="360">🔒 360 Browser</option>
+				<option value="qq">💬 QQ Browser</option>
+				<option value="random">🎲 Random</option>
+				<option value="randomized">🎭 Dynamic</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2 text-gray-500">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
         </div>
     </div>
 </div>
-                <div class="pt-2 border-t border-gray-100 dark:border-zinc-900">
-                    <label class="block text-xs font-bold text-gray-500 dark:text-zinc-400 mb-3 uppercase tracking-wider">پورت‌های اتصال (انتخاب چندگانه)</label>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="p-3 bg-gray-50/50 dark:bg-zinc-900/20 border border-gray-200/60 dark:border-zinc-800 rounded-2xl shadow-sm">
-                            <div class="flex items-center gap-1.5 mb-2">
-                                <span class="flex h-2 w-2 rounded-full bg-blue-500 shadow-sm"></span>
-                                <span class="text-[11px] font-bold text-blue-600 dark:text-blue-400">🔒 پورت‌های امن (TLS)</span>
-                            </div>
-                            <div class="grid grid-cols-3 gap-1.5" id="tls-ports-list">
-                            </div>
-                        </div>
-                        <div class="p-3 bg-gray-50/50 dark:bg-zinc-900/20 border border-gray-200/60 dark:border-zinc-800 rounded-2xl shadow-sm">
-                            <div class="flex items-center gap-1.5 mb-2">
-                                <span class="flex h-2 w-2 rounded-full bg-amber-500 shadow-sm"></span>
-                                <span class="text-[11px] font-bold text-amber-600 dark:text-amber-400">🔓 پورت‌های معمولی (Non-TLS)</span>
-                            </div>
-                            <div class="grid grid-cols-3 gap-1.5" id="nontls-ports-list">
-                            </div>
-                        </div>
-                    </div>
-					<div class="mt-4 p-3 bg-gray-50/50 dark:bg-zinc-900/20 border border-gray-200/60 dark:border-zinc-800 rounded-2xl shadow-sm">
-                        <div class="flex items-center gap-1.5 mb-2">
-                            <span class="flex h-2 w-2 rounded-full bg-green-600 shadow-sm"></span>
-                            <span class="text-[11px] font-bold text-green-700 dark:text-green-500">⚙️ پورت‌های دلخواه (با فاصله جدا کنید)</span>
-                        </div>
-                        <input type="text" id="input-custom-ports" placeholder="8080 2096 5000" dir="ltr" class="w-full px-2 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-mono text-left text-gray-800 dark:text-zinc-100 transition">
-                    </div>
-                </div>
+						<div class="grid grid-cols-2 gap-2 mt-2">
+    						<div class="flex items-center justify-between bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-1.5 shadow-sm">
+    						    <span class="text-[10px] sm:text-xs font-semibold text-gray-700 dark:text-zinc-300 whitespace-nowrap pl-1">NSFW Blacker</span>
+    						    <label class="relative inline-flex items-center cursor-pointer scale-[0.65] sm:scale-75 origin-left">
+    						        <input type="checkbox" id="input-block-porn" class="sr-only peer">
+    						        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-700"></div>
+    						    </label>
+    						</div>
+    						<div class="flex items-center justify-between bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-1.5 shadow-sm">
+    						    <span class="text-[10px] sm:text-xs font-semibold text-gray-700 dark:text-zinc-300 whitespace-nowrap pl-1">ADS blocker</span>
+    						    <label class="relative inline-flex items-center cursor-pointer scale-[0.65] sm:scale-75 origin-left">
+    						        <input type="checkbox" id="input-block-ads" class="sr-only peer">
+    						        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-700"></div>
+    						    </label>
+    						</div>
+						</div>
+<div class="pt-2 border-t border-gray-100 dark:border-zinc-900">
+    <label class="block text-xs font-bold text-gray-500 dark:text-zinc-400 mb-3 uppercase tracking-wider">پورت‌های اتصال</label>
+    <div class="grid grid-cols-2 gap-2 md:gap-4">
+        <div class="p-3 bg-gray-50/50 dark:bg-zinc-900/20 border border-gray-200/60 dark:border-zinc-800 rounded-2xl shadow-sm">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="flex h-2 w-2 rounded-full bg-blue-500 shadow-sm"></span>
+                <span class="text-[11px] font-bold text-blue-600 dark:text-blue-400">🔒TLS PORT</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5" id="tls-ports-list">
+            </div>
+        </div>
+        <div class="p-3 bg-gray-50/50 dark:bg-zinc-900/20 border border-gray-200/60 dark:border-zinc-800 rounded-2xl shadow-sm">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="flex h-2 w-2 rounded-full bg-amber-500 shadow-sm"></span>
+                <span class="text-[11px] font-bold text-amber-600 dark:text-amber-400">🔓Non-TLS PORT</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5" id="nontls-ports-list">
+            </div>
+        </div>
+    </div>
+    <div class="mt-4 p-3 bg-gray-50/50 dark:bg-zinc-900/20 border border-gray-200/60 dark:border-zinc-800 rounded-2xl shadow-sm">
+        <div class="flex items-center gap-1.5 mb-2">
+            <span class="flex h-2 w-2 rounded-full bg-green-600 shadow-sm"></span>
+            <span class="text-[11px] font-bold text-green-700 dark:text-green-500">⚙️ پورت‌های دلخواه (با فاصله جدا کنید)</span>
+        </div>
+        <input type="text" id="input-custom-ports" placeholder="8080 2096 5000" dir="ltr" class="w-full px-2 py-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-mono text-left text-gray-800 dark:text-zinc-100 transition">
+    </div>
+</div>
                 <div class="pt-4 border-t border-gray-100 dark:border-zinc-900 space-y-4">
 					<div>
     					<div class="flex items-center justify-between mb-2">
@@ -3124,48 +3186,14 @@ const HTML_TEMPLATES = {
                                     <button type="button" onclick="openProxySelectorModal()" class="flex-1 text-center text-[11px] bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 py-1.5 rounded border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition font-bold shadow-sm">مخزن پروکسی</button>
                                 </div>
                                 <div class="mt-3 p-3 border-2 border-dashed border-orange-400 dark:border-orange-500/70 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 rounded-xl text-[11px] font-bold leading-relaxed text-center w-full">
-                                    پروکسی‌های موجود در این مخزن عمومی بوده و ممکن است باعث افت سرعت و کاهش پایداری کانفیگ‌ها شوند. جهت دستیابی به بالاترین سطح کیفیت، پیشنهاد می‌شود از طریق دکمه‌ی <span class="text-blue-600 dark:text-blue-400 font-black">«ساخت پروکسی شخصی»</span> نسبت به راه‌اندازی پروکسی اختصاصی بر روی سرور خود اقدام نمایید.
-                                </div>
+									پروکسی‌های عمومی ناپایدارند. برای کیفیت بالاتر، از دکمه <span class="text-blue-600 dark:text-blue-400 font-black">«ساخت پروکسی شخصی»</span> استفاده کنید.
+								</div>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="mt-4">
-                        <label class="block text-xs font-bold text-gray-500 dark:text-zinc-400 mb-2 uppercase tracking-wider">شبیه‌ساز اثر انگشت مرورگر (Fingerprint)</label>
-                        <div class="relative">
-                            <select id="fingerprint-select" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-xs font-semibold text-gray-700 dark:text-zinc-300 cursor-pointer appearance-none">
-                                <option value="chrome">🌐 Chrome</option>
-                                <option value="firefox">🦊 Firefox</option>
-                                <option value="safari">🧭 Safari</option>
-                                <option value="ios" selected>📱 iOS Device (پیشنهادی)</option>
-                                <option value="android">🤖 Android Device</option>
-                                <option value="edge">🌀 Microsoft Edge</option>
-                                <option value="360">🔒 360 Browser</option>
-                                <option value="qq">💬 QQ Browser</option>
-                                <option value="random">🎲 Random (اتفاقی)</option>
-                                <option value="randomized">🎭 Randomized (پویا)</option>
-                            </select>
-                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-zinc-400">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </div>
-                        </div>
-                    </div>
-						<div class="grid grid-cols-2 gap-2 mt-2">
-    						<div class="flex items-center justify-between bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-1.5 shadow-sm">
-    						    <span class="text-[10px] sm:text-xs font-semibold text-gray-700 dark:text-zinc-300 whitespace-nowrap pl-1">NSFW Blacker</span>
-    						    <label class="relative inline-flex items-center cursor-pointer scale-[0.65] sm:scale-75 origin-left">
-    						        <input type="checkbox" id="input-block-porn" class="sr-only peer">
-    						        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-700"></div>
-    						    </label>
-    						</div>
-    						<div class="flex items-center justify-between bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-1.5 shadow-sm">
-    						    <span class="text-[10px] sm:text-xs font-semibold text-gray-700 dark:text-zinc-300 whitespace-nowrap pl-1">ADS blocker</span>
-    						    <label class="relative inline-flex items-center cursor-pointer scale-[0.65] sm:scale-75 origin-left">
-    						        <input type="checkbox" id="input-block-ads" class="sr-only peer">
-    						        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-700"></div>
-    						    </label>
-    						</div>
-						</div>
+                    
+						
                 </div>
                 <div class="pt-4 flex gap-3">
                     <button type="button" onclick="toggleModal(false)" class="flex-1 py-3 bg-transparent border-2 border-rose-700 text-rose-700 hover:bg-rose-900/20 hover:text-rose-800 dark:border-rose-700 dark:text-rose-500 dark:hover:bg-rose-900/40 dark:hover:text-rose-400 font-bold rounded-xl text-sm transition duration-200 shadow-sm">انصراف</button>
@@ -3903,7 +3931,7 @@ const HTML_TEMPLATES = {
             }
         }
         const tlsPorts = ['443', '2053', '2083', '2087', '2096', '8443'];
-        const nonTlsPorts = ['80', '8080', '8880', '2052', '2082', '2086', '2095'];
+        const nonTlsPorts = ['80', '8080', '8880', '2052', '2086', '2095'];
         let isEditMode = false;
         let editingUsername = '';
         function renderPortCheckboxes() {
@@ -4296,25 +4324,25 @@ const HTML_TEMPLATES = {
 					if (user.limit_req) {
 					    const reqPercent = Math.min((usedReq / user.limit_req) * 100, 100);
 					    const reqHue = 120 - (reqPercent * 1.2);
-					    reqHtml = '<div class="flex flex-row items-center gap-2 w-full min-w-[90px] select-none">' +
-					        '<div class="w-2 h-20 bg-gray-200 dark:bg-zinc-700 rounded-full flex flex-col justify-end overflow-hidden flex-shrink-0">' +
-					            '<div class="w-full rounded-full transition-all duration-500" style="height: ' + reqPercent + '%; background-color: hsl(' + reqHue + ', 80%, 45%)"></div>' +
+					    reqHtml = '<div class="flex flex-col gap-1.5 w-full min-w-[65px] max-w-[90px] mx-auto select-none">' +
+					        '<div class="flex flex-row items-center justify-between text-[9px] text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">' +
+					            '<span class="text-gray-800 dark:text-zinc-200 leading-none font-bold" dir="ltr">' + usedReq.toLocaleString() + '</span>' +
+					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'req\\')" title="ریست" class="mx-1.5 w-3.5 h-3.5 flex items-center justify-center bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded border border-amber-200 dark:border-amber-800 transition shadow-sm cursor-pointer flex-shrink-0"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>' +
+					            '<span class="leading-none font-bold" dir="ltr">' + user.limit_req.toLocaleString() + '</span>' +
 					        '</div>' +
-					        '<div class="flex flex-col justify-between h-20 text-[10px] text-gray-500 dark:text-gray-400 font-medium text-right flex-1 whitespace-nowrap">' +
-					            '<span class="text-gray-800 dark:text-zinc-200 leading-none">مصرف: ' + usedReq.toLocaleString() + '</span>' +
-					            '<span class="leading-none">کل: ' + user.limit_req.toLocaleString() + '</span>' +
-					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'req\\')" class="mt-1 inline-block w-full text-center px-1 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer">ریست</button>' +
+					        '<div class="w-full h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">' +
+					            '<div class="h-full rounded-full transition-all duration-500" style="width: ' + reqPercent + '%; background-color: hsl(' + reqHue + ', 80%, 45%)"></div>' +
 					        '</div>' +
 					    '</div>';
 					} else {
-					    reqHtml = '<div class="flex flex-row items-center gap-2 w-full min-w-[90px] select-none">' +
-					        '<div class="w-2 h-20 bg-gray-200 dark:bg-zinc-700 rounded-full flex flex-col justify-end overflow-hidden flex-shrink-0">' +
-					            '<div class="w-full bg-blue-500 rounded-full transition-all duration-500" style="height: 100%"></div>' +
+					    reqHtml = '<div class="flex flex-col gap-1.5 w-full min-w-[65px] max-w-[90px] mx-auto select-none">' +
+					        '<div class="flex flex-row items-center justify-between text-[9px] text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">' +
+					            '<span class="text-gray-800 dark:text-zinc-200 leading-none font-bold" dir="ltr">' + usedReq.toLocaleString() + '</span>' +
+					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'req\\')" title="ریست" class="mx-1.5 w-3.5 h-3.5 flex items-center justify-center bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded border border-amber-200 dark:border-amber-800 transition shadow-sm cursor-pointer flex-shrink-0"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>' +
+					            '<span class="leading-none text-[12px] font-bold">∞</span>' +
 					        '</div>' +
-					        '<div class="flex flex-col justify-between h-20 text-[10px] text-gray-500 dark:text-gray-400 font-medium text-right flex-1 whitespace-nowrap">' +
-					            '<span class="text-gray-800 dark:text-zinc-200 leading-none">مصرف: ' + usedReq.toLocaleString() + '</span>' +
-					            '<span class="leading-none">کل: نامحدود</span>' +
-					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'req\\')" class="mt-1 inline-block w-full text-center px-1 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer">ریست</button>' +
+					        '<div class="w-full h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">' +
+					            '<div class="w-full h-full bg-blue-500 rounded-full transition-all duration-500"></div>' +
 					        '</div>' +
 					    '</div>';
 					}
@@ -4322,51 +4350,53 @@ const HTML_TEMPLATES = {
 					if (user.limit_gb) {
 					    const limitPercent = Math.min((usedGb / user.limit_gb) * 100, 100);
 					    const limitHue = 120 - (limitPercent * 1.2);
-					    const formattedLimit = user.limit_gb < 1 ? (user.limit_gb * 1024).toFixed(0) + ' MB' : user.limit_gb + ' GB';
-					    volumeHtml = '<div class="flex flex-row items-center gap-2 w-full min-w-[90px] select-none">' +
-					        '<div class="w-2 h-20 bg-gray-200 dark:bg-zinc-700 rounded-full flex flex-col justify-end overflow-hidden flex-shrink-0">' +
-					            '<div class="w-full rounded-full transition-all duration-500" style="height: ' + limitPercent + '%; background-color: hsl(' + limitHue + ', 80%, 45%)"></div>' +
+					    const formattedLimit = user.limit_gb < 1 ? (user.limit_gb * 1024).toFixed(0) + 'MB' : user.limit_gb + 'GB';
+					    const formattedUsedClean = usedGb < 1 ? (usedGb * 1024).toFixed(0) + 'MB' : usedGb.toFixed(2) + 'GB';
+					    volumeHtml = '<div class="flex flex-col gap-1.5 w-full min-w-[65px] max-w-[90px] mx-auto select-none">' +
+					        '<div class="flex flex-row items-center justify-between text-[9px] text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">' +
+					            '<span class="text-gray-800 dark:text-zinc-200 leading-none font-bold" dir="ltr">' + formattedUsedClean + '</span>' +
+					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'volume\\')" title="ریست" class="mx-1.5 w-3.5 h-3.5 flex items-center justify-center bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded border border-amber-200 dark:border-amber-800 transition shadow-sm cursor-pointer flex-shrink-0"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>' +
+					            '<span class="leading-none font-bold" dir="ltr">' + formattedLimit + '</span>' +
 					        '</div>' +
-					        '<div class="flex flex-col justify-between h-20 text-[10px] text-gray-500 dark:text-gray-400 font-medium text-right flex-1 whitespace-nowrap">' +
-					            '<span class="text-gray-800 dark:text-zinc-200 leading-none">مصرف: ' + formattedUsed + '</span>' +
-					            '<span class="leading-none">کل: ' + formattedLimit + '</span>' +
-					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'volume\\')" class="mt-1 inline-block w-full text-center px-1 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer">ریست</button>' +
+					        '<div class="w-full h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">' +
+					            '<div class="h-full rounded-full transition-all duration-500" style="width: ' + limitPercent + '%; background-color: hsl(' + limitHue + ', 80%, 45%)"></div>' +
 					        '</div>' +
 					    '</div>';
 					} else {
-					    volumeHtml = '<div class="flex flex-row items-center gap-2 w-full min-w-[90px] select-none">' +
-					        '<div class="w-2 h-20 bg-gray-200 dark:bg-zinc-700 rounded-full flex flex-col justify-end overflow-hidden flex-shrink-0">' +
-					            '<div class="w-full bg-blue-500 rounded-full transition-all duration-500" style="height: 100%"></div>' +
+					    const formattedUsedClean = usedGb < 1 ? (usedGb * 1024).toFixed(0) + 'MB' : usedGb.toFixed(2) + 'GB';
+					    volumeHtml = '<div class="flex flex-col gap-1.5 w-full min-w-[65px] max-w-[90px] mx-auto select-none">' +
+					        '<div class="flex flex-row items-center justify-between text-[9px] text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">' +
+					            '<span class="text-gray-800 dark:text-zinc-200 leading-none font-bold" dir="ltr">' + formattedUsedClean + '</span>' +
+					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'volume\\')" title="ریست" class="mx-1.5 w-3.5 h-3.5 flex items-center justify-center bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded border border-amber-200 dark:border-amber-800 transition shadow-sm cursor-pointer flex-shrink-0"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>' +
+					            '<span class="leading-none text-[12px] font-bold">∞</span>' +
 					        '</div>' +
-					        '<div class="flex flex-col justify-between h-20 text-[10px] text-gray-500 dark:text-gray-400 font-medium text-right flex-1 whitespace-nowrap">' +
-					            '<span class="text-gray-800 dark:text-zinc-200 leading-none">مصرف: ' + formattedUsed + '</span>' +
-					            '<span class="leading-none">کل: نامحدود</span>' +
-					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'volume\\')" class="mt-1 inline-block w-full text-center px-1 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer">ریست</button>' +
+					        '<div class="w-full h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">' +
+					            '<div class="w-full h-full bg-blue-500 rounded-full transition-all duration-500"></div>' +
 					        '</div>' +
 					    '</div>';
 					}
 					let expiryHtml = '';
 					if (user.expiry_days) {
 					    const expiryHue = daysPercent * 1.2;
-					    expiryHtml = '<div class="flex flex-row items-center gap-2 w-full min-w-[90px] select-none">' +
-					        '<div class="w-2 h-20 bg-gray-200 dark:bg-zinc-700 rounded-full flex flex-col justify-end overflow-hidden flex-shrink-0">' +
-					            '<div class="w-full rounded-full transition-all duration-500" style="height: ' + daysPercent + '%; background-color: hsl(' + expiryHue + ', 80%, 45%)"></div>' +
+					    expiryHtml = '<div class="flex flex-col gap-1.5 w-full min-w-[65px] max-w-[90px] mx-auto select-none">' +
+					        '<div class="flex flex-row items-center justify-between text-[9px] text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">' +
+					            '<span class="text-gray-800 dark:text-zinc-200 leading-none font-bold" dir="rtl">' + daysRemaining + ' روز</span>' +
+					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'time\\')" title="ریست" class="mx-1.5 w-3.5 h-3.5 flex items-center justify-center bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded border border-amber-200 dark:border-amber-800 transition shadow-sm cursor-pointer flex-shrink-0"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>' +
+					            '<span class="leading-none font-bold" dir="rtl">' + user.expiry_days + ' روز</span>' +
 					        '</div>' +
-					        '<div class="flex flex-col justify-between h-20 text-[10px] text-gray-500 dark:text-gray-400 font-medium text-right flex-1 whitespace-nowrap">' +
-					            '<span class="text-gray-800 dark:text-zinc-200 leading-none">مانده: ' + daysRemaining + ' روز</span>' +
-					            '<span class="leading-none">کل: ' + user.expiry_days + ' روز</span>' +
-					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'time\\')" class="mt-1 inline-block w-full text-center px-1 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer">ریست</button>' +
+					        '<div class="w-full h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden flex justify-end">' +
+					            '<div class="h-full rounded-full transition-all duration-500" style="width: ' + daysPercent + '%; background-color: hsl(' + expiryHue + ', 80%, 45%)"></div>' +
 					        '</div>' +
 					    '</div>';
 					} else {
-					    expiryHtml = '<div class="flex flex-row items-center gap-2 w-full min-w-[90px] select-none">' +
-					        '<div class="w-2 h-20 bg-gray-200 dark:bg-zinc-700 rounded-full flex flex-col justify-end overflow-hidden flex-shrink-0">' +
-					            '<div class="w-full bg-blue-500 rounded-full transition-all duration-500" style="height: 100%"></div>' +
+					    expiryHtml = '<div class="flex flex-col gap-1.5 w-full min-w-[65px] max-w-[90px] mx-auto select-none">' +
+					        '<div class="flex flex-row items-center justify-between text-[9px] text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">' +
+					            '<span class="text-gray-800 dark:text-zinc-200 leading-none font-bold text-[12px]">∞</span>' +
+					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'time\\')" title="ریست" class="mx-1.5 w-3.5 h-3.5 flex items-center justify-center bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded border border-amber-200 dark:border-amber-800 transition shadow-sm cursor-pointer flex-shrink-0"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>' +
+					            '<span class="leading-none text-[12px] font-bold">∞</span>' +
 					        '</div>' +
-					        '<div class="flex flex-col justify-between h-20 text-[10px] text-gray-500 dark:text-gray-400 font-medium text-right flex-1 whitespace-nowrap">' +
-					            '<span class="text-gray-800 dark:text-zinc-200 leading-none">مانده: نامحدود</span>' +
-					            '<span class="leading-none">کل: نامحدود</span>' +
-					            '<button onclick="resetUserData(\\'' + encodeURIComponent(user.username) + '\\', \\'time\\')" class="mt-1 inline-block w-full text-center px-1 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer">ریست</button>' +
+					        '<div class="w-full h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">' +
+					            '<div class="w-full h-full bg-blue-500 rounded-full transition-all duration-500"></div>' +
 					        '</div>' +
 					    '</div>';
 					}
@@ -4376,23 +4406,23 @@ const HTML_TEMPLATES = {
 					if (limit) {
 					    const onlinePercent = Math.min((onlineCount / limit) * 100, 100);
 					    const onlineHue = 120 - (onlinePercent * 1.2);
-					    onlineHtml = '<div class="flex flex-row items-center gap-2 w-full min-w-[90px] select-none">' +
-					        '<div class="w-2 h-20 bg-gray-200 dark:bg-zinc-700 rounded-full flex flex-col justify-end overflow-hidden flex-shrink-0">' +
-					            '<div class="w-full rounded-full transition-all duration-500" style="height: ' + onlinePercent + '%; background-color: hsl(' + onlineHue + ', 80%, 45%)"></div>' +
+					    onlineHtml = '<div class="flex flex-col gap-1.5 w-full min-w-[65px] max-w-[90px] mx-auto select-none">' +
+					        '<div class="flex flex-row items-center justify-between text-[9px] text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">' +
+					            '<span class="text-gray-800 dark:text-zinc-200 leading-none font-bold" dir="ltr">' + onlineCount + '</span>' +
+					            '<span class="leading-none font-bold" dir="ltr">' + limit + '</span>' +
 					        '</div>' +
-					        '<div class="flex flex-col justify-between h-20 text-[10px] text-gray-500 dark:text-gray-400 font-medium text-right flex-1 whitespace-nowrap">' +
-					            '<span class="text-gray-800 dark:text-zinc-200 leading-none">متصل: ' + onlineCount + '</span>' +
-					            '<span class="leading-none">سقف: ' + limit + '</span>' +
+					        '<div class="w-full h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">' +
+					            '<div class="h-full rounded-full transition-all duration-500" style="width: ' + onlinePercent + '%; background-color: hsl(' + onlineHue + ', 80%, 45%)"></div>' +
 					        '</div>' +
 					    '</div>';
 					} else {
-					    onlineHtml = '<div class="flex flex-row items-center gap-2 w-full min-w-[90px] select-none">' +
-					        '<div class="w-2 h-20 bg-gray-200 dark:bg-zinc-700 rounded-full flex flex-col justify-end overflow-hidden flex-shrink-0">' +
-					            '<div class="w-full ' + (onlineCount > 0 ? 'bg-green-600' : 'bg-gray-400') + ' rounded-full transition-all duration-500" style="height: 100%"></div>' +
+					    onlineHtml = '<div class="flex flex-col gap-1.5 w-full min-w-[65px] max-w-[90px] mx-auto select-none">' +
+					        '<div class="flex flex-row items-center justify-between text-[9px] text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">' +
+					            '<span class="text-gray-800 dark:text-zinc-200 leading-none font-bold" dir="ltr">' + onlineCount + '</span>' +
+					            '<span class="leading-none text-[12px] font-bold">∞</span>' +
 					        '</div>' +
-					        '<div class="flex flex-col justify-between h-20 text-[10px] text-gray-500 dark:text-gray-400 font-medium text-right flex-1 whitespace-nowrap">' +
-					            '<span class="text-gray-800 dark:text-zinc-200 leading-none">متصل: ' + onlineCount + '</span>' +
-					            '<span class="leading-none">سقف: نامحدود</span>' +
+					        '<div class="w-full h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">' +
+					            '<div class="h-full ' + (onlineCount > 0 ? 'bg-green-600' : 'bg-gray-400') + ' rounded-full transition-all duration-500" style="width: 100%"></div>' +
 					        '</div>' +
 					    '</div>';
 					}
@@ -4412,7 +4442,6 @@ const HTML_TEMPLATES = {
                         : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
                     const isChecked = (window.selectedUsernames && window.selectedUsernames.has(user.username)) ? 'checked' : '';
                     
-                    
                     let locBadge = '';
                     if (user.user_proxy_iata) {
                         const iata = user.user_proxy_iata.toUpperCase();
@@ -4430,61 +4459,62 @@ const HTML_TEMPLATES = {
                     }
 
                     return '<tr class="hover:bg-gray-50 dark:hover:bg-zinc-900/40 border-b border-gray-100 dark:border-zinc-800 last:border-0">' +
-                            '<td class="p-2 border-r border-gray-100 dark:border-zinc-800 text-center select-none">' +
-                                '<input type="checkbox" name="select-user" value="' + encodeURIComponent(user.username) + '" onchange="onUserSelectChange(this)" ' + isChecked + ' class="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-zinc-700 text-blue-600 bg-white dark:bg-zinc-800 checked:bg-blue-600 checked:border-blue-600 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95">' +
+                            '<td class="p-1 border-r border-gray-100 dark:border-zinc-800 text-center select-none">' +
+                                '<input type="checkbox" name="select-user" value="' + encodeURIComponent(user.username) + '" onchange="onUserSelectChange(this)" ' + isChecked + ' class="w-4 h-4 rounded-md border-2 border-gray-300 dark:border-zinc-700 text-blue-600 bg-white dark:bg-zinc-800 checked:bg-blue-600 checked:border-blue-600 focus:ring-blue-500/50 focus:ring-offset-0 transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95">' +
                             '</td>' +
-                            '<td class="p-2 border-r border-gray-100 dark:border-zinc-800 text-center">' +
-                                '<div class="flex flex-col items-center gap-1.5 w-[165px] mx-auto select-none">' +
-                                    '<span class="font-bold text-gray-900 dark:text-zinc-100 text-sm truncate max-w-full">' + user.username + '</span>' +
-                                    '<div class="flex flex-nowrap items-center gap-1 w-full justify-center text-center whitespace-nowrap">' +
-                                        (!isEffectivelyActive ? '<span class="px-1 py-0.5 text-[10px] font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 rounded-md whitespace-nowrap">غیرفعال</span>' : '<span class="px-1 py-0.5 text-[10px] font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded-md whitespace-nowrap">فعال</span>') +
+                            '<td class="p-1.5 border-r border-gray-100 dark:border-zinc-800 text-center">' +
+                                '<div class="flex flex-col items-center justify-center gap-1 min-w-[70px] max-w-[100px] mx-auto select-none">' +
+                                    '<span class="font-bold text-gray-900 dark:text-zinc-100 text-xs truncate max-w-full leading-none">' + user.username + '</span>' +
+                                    '<div class="flex flex-wrap items-center justify-center gap-0.5">' +
+                                        (!isEffectivelyActive ? '<span class="px-1 py-px text-[9px] font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 rounded whitespace-nowrap">غیرفعال</span>' : '<span class="px-1 py-px text-[9px] font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded whitespace-nowrap">فعال</span>') +
                                         locBadge +
-                                        (user.is_online === 1 ? '<span class="px-1 py-0.5 text-[10px] font-medium bg-green-600 text-white rounded-md animate-pulse whitespace-nowrap" dir="rtl">' + user.online_count + '</span>' : '<span class="px-1 py-0.5 text-[10px] font-medium bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400 rounded-md whitespace-nowrap">آفلاین</span>') +
-                                    '</div>' +
-                                    '<div class="grid grid-cols-2 gap-1 w-full">' +
-                                        '<button onclick="copyConfig(\\'' + encodeURIComponent(user.username) + '\\')" title="کپی کانفیگ" class="p-1.5 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md transition shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>' +
-                                        '<button onclick="editUser(\\'' + encodeURIComponent(user.username) + '\\')" title="ویرایش" class="p-1.5 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-yellow-50 dark:hover:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded-md transition shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>' +
-                                        '<button onclick="deleteUser(\\'' + encodeURIComponent(user.username) + '\\')" title="حذف" class="p-1.5 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 rounded-md transition shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>' +
-                                        '<button onclick="toggleUserStatus(\\'' + encodeURIComponent(user.username) + '\\')" title="' + statusBtnTitle + '" class="p-1.5 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 ' + statusBtnColor + ' rounded-md transition shadow-sm">' + statusBtnIcon + '</button>' +
+                                        (user.is_online === 1 ? '<span class="px-1 py-px text-[9px] font-medium bg-green-600 text-white rounded animate-pulse whitespace-nowrap" dir="rtl">' + user.online_count + '</span>' : '<span class="px-1 py-px text-[9px] font-medium bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400 rounded whitespace-nowrap">آفلاین</span>') +
                                     '</div>' +
                                 '</div>' +
                             '</td>' +
-                            							'<td class="p-2 border-r border-gray-100 dark:border-zinc-800">' +
-							    '<div class="flex flex-col gap-2 w-max mx-auto">' +
-							        '<div class="flex gap-1">' +
-							            '<button onclick="copySubLink(\\'' + encodeURIComponent(user.username) + '\\')" class="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-lg text-xs font-bold transition border border-indigo-200 dark:border-indigo-800">' +
-							                '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>' +
-							                'ساب متنی' +
+                            '<td class="p-1.5 border-r border-gray-100 dark:border-zinc-800 text-center">' +
+                                '<div class="grid grid-cols-2 gap-1 w-max mx-auto">' +
+                                    '<button onclick="copyConfig(\\'' + encodeURIComponent(user.username) + '\\')" title="کپی کانفیگ" class="p-1 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded transition shadow-sm"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>' +
+                                    '<button onclick="editUser(\\'' + encodeURIComponent(user.username) + '\\')" title="ویرایش" class="p-1 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-yellow-50 dark:hover:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded transition shadow-sm"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>' +
+                                    '<button onclick="deleteUser(\\'' + encodeURIComponent(user.username) + '\\')" title="حذف" class="p-1 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 rounded transition shadow-sm"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>' +
+                                    '<button onclick="toggleUserStatus(\\'' + encodeURIComponent(user.username) + '\\')" title="' + statusBtnTitle + '" class="p-1 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 ' + statusBtnColor + ' rounded transition shadow-sm">' + statusBtnIcon + '</button>' +
+                                '</div>' +
+                            '</td>' +
+                            '<td class="p-1 border-r border-gray-100 dark:border-zinc-800">' +
+							    '<div class="flex flex-col gap-0.5 w-[90px] mx-auto">' +
+							        '<button onclick="copySubLink(\\'' + encodeURIComponent(user.username) + '\\')" class="w-full flex items-center justify-center gap-1 px-1 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded text-[9px] font-bold transition border border-indigo-200 dark:border-indigo-800">' +
+							            '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>' +
+							            'ساب متنی' +
+							        '</button>' +
+							        '<div class="flex flex-row gap-0.5 w-full h-[22px]">' +
+							            '<button onclick="copyStatusLink(\\'' + encodeURIComponent(user.username) + '\\')" class="flex-1 flex items-center justify-center gap-1 px-1 py-0 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-500 hover:bg-green-100 dark:hover:bg-green-900/50 rounded text-[9px] font-bold transition border border-green-200 dark:border-green-800 whitespace-nowrap">' +
+							                '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>' +
+							                'وضعیت' +
 							            '</button>' +
-							        '</div>' +
-									'<div class="flex gap-1">' +
-							            '<button onclick="showSubQr(\\'' + encodeURIComponent(user.username) + '\\')" class="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-lg text-xs font-bold transition border border-amber-200 dark:border-amber-800">' +
-							                '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 19h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>' +
-							                'QR ساب' +
-							            '</button>' +
-							        '</div>' +
-							        '<div class="flex gap-1">' +
-							            '<button onclick="copyStatusLink(\\'' + encodeURIComponent(user.username) + '\\')" class="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-500 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-lg text-xs font-bold transition border border-green-200 dark:border-green-800">' +
-							                '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>' +
-							                'صفحه وضعیت' +
+							            '<button onclick="showSubQr(\\'' + encodeURIComponent(user.username) + '\\')" title="QR ساب" class="w-[22px] flex-shrink-0 flex items-center justify-center bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded transition border border-amber-200 dark:border-amber-800">' +
+							                '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 19h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>' +
 							            '</button>' +
 							        '</div>' +
 							    '</div>' +
 							'</td>' +
-							'<td class="p-2 border-r border-gray-100 dark:border-zinc-800 text-xs">' + 
-							    '<div class="grid grid-flow-col grid-rows-5 gap-1.5 w-fit mx-auto">' +
+							'<td class="p-1.5 border-r border-gray-100 dark:border-zinc-800 text-xs">' + 
+							    '<div class="grid grid-flow-col grid-rows-3 gap-1 w-max mx-auto">' +
 							        String(user.port || "").split(",").map(function(p) {
 							            p = p.trim();
 							            if (!p) return "";
 							            var isTls = tlsPorts.includes(p);
-							            return '<span class="inline-block w-10 text-center px-1 py-0.5 text-[10px] font-semibold rounded ' + (isTls ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400') + '">' + p + '</span>';
+							            var isNonTls = nonTlsPorts.includes(p);
+							            var colorClass = isTls ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 
+							                             isNonTls ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' : 
+							                             'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+							            return '<span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-semibold rounded leading-none ' + colorClass + '">' + p + '</span>';
 							        }).join("") +
 							    '</div>' +
 							'</td>' +
-							'<td class="p-2 border-r border-gray-100 dark:border-zinc-800">' + volumeHtml + '</td>' +
-							'<td class="p-2 border-r border-gray-100 dark:border-zinc-800">' + reqHtml + '</td>' +
-							'<td class="p-2 border-r border-gray-100 dark:border-zinc-800">' + expiryHtml + '</td>' +
-							'<td class="p-2 border-r border-gray-100 dark:border-zinc-800">' + onlineHtml + '</td>' +
+							'<td class="p-1.5 border-r border-gray-100 dark:border-zinc-800">' + volumeHtml + '</td>' +
+							'<td class="p-1.5 border-r border-gray-100 dark:border-zinc-800">' + reqHtml + '</td>' +
+							'<td class="p-1.5 border-r border-gray-100 dark:border-zinc-800">' + expiryHtml + '</td>' +
+							'<td class="p-1.5 border-r border-gray-100 dark:border-zinc-800">' + onlineHtml + '</td>' +
 							'</tr>';
                 }).join('');
                 updateBulkActionsBar();
@@ -5380,7 +5410,7 @@ window.filterLocations = function() {
                 window.location.reload();
             }
         }
-const CURRENT_VERSION = '1.7.5';
+const CURRENT_VERSION = '1.7.6';
 const UPDATE_FIX = "constsCURRENT_VERSION='d.d.d'";
 		async function checkForUpdates(isManual = false) {
             try {
@@ -5914,88 +5944,90 @@ window.addEventListener('click', (e) => {
         }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-900 dark:bg-amoled-bg dark:text-zinc-100 min-h-screen flex flex-col items-center py-12 px-4">
+<body class="bg-gray-50 text-gray-900 dark:bg-amoled-bg dark:text-zinc-100 min-h-screen flex flex-col items-center py-12 px-4 overflow-x-hidden">
     <div class="w-full max-w-xl glass rounded-3xl shadow-2xl p-6 md:p-8 relative overflow-hidden">
         <div class="absolute -left-12 -top-12 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div class="absolute -right-12 -bottom-12 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div class="text-center mb-8 relative z-10">
-            <div class="inline-block p-3.5 bg-blue-600/10 text-blue-500 rounded-3xl mb-3 border border-blue-500/20 shadow-lg shadow-blue-500/5">
-                <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            <div class="inline-flex items-center justify-center p-3 bg-blue-950/60 border border-blue-500 text-blue-400 rounded-2xl mb-4 shadow-[0_0_15px_rgba(59,130,246,0.4)]">
+                <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
             </div>
             <h1 class="text-xl font-bold tracking-tight text-gray-900 dark:text-white mb-1">پنل زئوس - وضعیت اشتراک</h1>
             <p id="display-username" class="text-sm font-bold text-blue-500 tracking-wide font-mono mb-2"></p>
-            <div id="live-connections-badge" class="hidden inline-flex items-center gap-1.5 px-3 py-1 bg-green-600/10 border border-green-600/20 text-green-600 rounded-full text-xs font-bold shadow-sm">
+            <div id="live-connections-badge" style="display: none !important;">
                 <span class="w-2 h-2 rounded-full bg-green-600 animate-pulse"></span>
                 <span id="live-connections-text" dir="rtl">۰ دستگاه متصل</span>
             </div>
         </div>
-        <!-- Connection Status -->
         <div id="status-card" class="mb-6 rounded-2xl p-4 text-center border font-bold relative z-10 transition duration-300">
             <span id="status-text" class="text-sm">در حال بارگذاری وضعیت...</span>
         </div>
-        <div class="space-y-5 mb-8 relative z-10">
-            <div class="bg-white/40 dark:bg-zinc-900/30 border border-gray-200 dark:border-amoled-border rounded-2xl p-5 shadow-sm">
-                <div class="flex justify-between items-center mb-3">
-                    <span class="text-xs font-semibold text-gray-500 dark:text-zinc-400 flex items-center gap-1.5">
-                        <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                        میزان حجم مصرفی
+        <div class="grid grid-cols-2 gap-3 mb-8 relative z-10">
+            <div class="bg-white/40 dark:bg-zinc-900/30 border border-gray-200 dark:border-amoled-border rounded-xl p-3 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-[10px] font-semibold text-gray-600 dark:text-zinc-400 flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        حجم مصرفی
                     </span>
-                    <span id="volume-pct" class="text-xs font-bold text-blue-500">۰٪</span>
+                    <span id="volume-pct" class="text-[10px] font-bold text-gray-800 dark:text-zinc-200">۰٪</span>
                 </div>
-                <div class="w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-2.5 overflow-hidden mb-3">
-                    <div id="volume-progress" class="bg-blue-600 h-2.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                <div class="w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden mb-2">
+                    <div id="volume-progress" class="h-1.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
                 </div>
-                <div class="flex justify-between text-xs text-gray-500 dark:text-zinc-400 font-medium">
-                    <span>مصرف شده: <span id="used-vol" class="font-bold text-gray-800 dark:text-zinc-200">-</span></span>
-                    <span>حجم کل: <span id="limit-vol" class="font-bold text-gray-800 dark:text-zinc-200">-</span></span>
+                <div class="flex justify-between text-[9px] text-gray-500 dark:text-zinc-400 font-medium">
+                    <span id="used-vol" class="font-bold text-gray-800 dark:text-zinc-200" dir="ltr">-</span>
+                    <span id="limit-vol" class="font-bold text-gray-800 dark:text-zinc-200" dir="ltr">-</span>
                 </div>
             </div>
-            <div class="bg-white/40 dark:bg-zinc-900/30 border border-gray-200 dark:border-amoled-border rounded-2xl p-5 shadow-sm">
-                <div class="flex justify-between items-center mb-3">
-                    <span class="text-xs font-semibold text-gray-500 dark:text-zinc-400 flex items-center gap-1.5">
-                        <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        زمان باقی‌مانده اشتراک
+            
+            <div class="bg-white/40 dark:bg-zinc-900/30 border border-gray-200 dark:border-amoled-border rounded-xl p-3 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-[10px] font-semibold text-gray-600 dark:text-zinc-400 flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        زمان باقی‌مانده
                     </span>
-                    <span id="expiry-pct" class="text-xs font-bold text-purple-500">۰٪</span>
+                    <span id="expiry-pct" class="text-[10px] font-bold text-gray-800 dark:text-zinc-200">۰٪</span>
                 </div>
-                <div class="w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-2.5 overflow-hidden mb-3 flex justify-end">
-                    <div id="expiry-progress" class="bg-purple-600 h-2.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                <div class="w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden mb-2 flex justify-end">
+                    <div id="expiry-progress" class="h-1.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
                 </div>
-                <div class="flex justify-between text-xs text-gray-500 dark:text-zinc-400 font-medium">
-                    <span>باقی‌مانده: <span id="days-remaining" class="font-bold text-gray-800 dark:text-zinc-200">-</span></span>
-                    <span>کل اعتبار: <span id="total-days" class="font-bold text-gray-800 dark:text-zinc-200">-</span></span>
+                <div class="flex justify-between text-[9px] text-gray-500 dark:text-zinc-400 font-medium">
+                    <span id="days-remaining" class="font-bold text-gray-800 dark:text-zinc-200" dir="rtl">-</span>
+                    <span id="total-days" class="font-bold text-gray-800 dark:text-zinc-200" dir="rtl">-</span>
                 </div>
             </div>
-            <div class="bg-white/40 dark:bg-zinc-900/30 border border-gray-200 dark:border-amoled-border rounded-2xl p-5 shadow-sm">
-                <div class="flex justify-between items-center mb-3">
-                    <span class="text-xs font-semibold text-gray-500 dark:text-zinc-400 flex items-center gap-1.5">
-                        <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        وضعیت ریکوئست‌ها
+
+            <div class="bg-white/40 dark:bg-zinc-900/30 border border-gray-200 dark:border-amoled-border rounded-xl p-3 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-[10px] font-semibold text-gray-600 dark:text-zinc-400 flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        ریکوئست‌ها
                     </span>
-                    <span id="req-pct" class="text-xs font-bold text-green-600">۰٪</span>
+                    <span id="req-pct" class="text-[10px] font-bold text-gray-800 dark:text-zinc-200">۰٪</span>
                 </div>
-                <div class="w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-2.5 overflow-hidden mb-3">
-                    <div id="req-progress" class="bg-green-700 h-2.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                <div class="w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden mb-2">
+                    <div id="req-progress" class="h-1.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
                 </div>
-                <div class="flex justify-between text-xs text-gray-500 dark:text-zinc-400 font-medium">
-                    <span>مصرف شده: <span id="used-req" class="font-bold text-gray-800 dark:text-zinc-200">-</span></span>
-                    <span>سقف کل: <span id="limit-req" class="font-bold text-gray-800 dark:text-zinc-200">-</span></span>
+                <div class="flex justify-between text-[9px] text-gray-500 dark:text-zinc-400 font-medium">
+                    <span id="used-req" class="font-bold text-gray-800 dark:text-zinc-200" dir="ltr">-</span>
+                    <span id="limit-req" class="font-bold text-gray-800 dark:text-zinc-200" dir="ltr">-</span>
                 </div>
             </div>
-            <div class="bg-white/40 dark:bg-zinc-900/30 border border-gray-200 dark:border-amoled-border rounded-2xl p-5 shadow-sm">
-                <div class="flex justify-between items-center mb-3">
-                    <span class="text-xs font-semibold text-gray-500 dark:text-zinc-400 flex items-center gap-1.5">
-                        <svg class="w-4 h-4 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                        دستگاه‌های متصل
+
+            <div class="bg-white/40 dark:bg-zinc-900/30 border border-gray-200 dark:border-amoled-border rounded-xl p-3 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-[10px] font-semibold text-gray-600 dark:text-zinc-400 flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                        دستگاه متصل
                     </span>
-                    <span id="online-pct" class="text-xs font-bold text-sky-500">۰٪</span>
+                    <span id="online-pct" class="text-[10px] font-bold text-gray-800 dark:text-zinc-200">۰٪</span>
                 </div>
-                <div class="w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-2.5 overflow-hidden mb-3">
-                    <div id="online-progress" class="bg-sky-600 h-2.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                <div class="w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden mb-2">
+                    <div id="online-progress" class="h-1.5 rounded-full transition-all duration-1000" style="width: 0%"></div>
                 </div>
-                <div class="flex justify-between text-xs text-gray-500 dark:text-zinc-400 font-medium">
-                    <span>متصل در لحظه: <span id="online-count" class="font-bold text-gray-800 dark:text-zinc-200">۰</span></span>
-                    <span>سقف همزمان: <span id="limit-online" class="font-bold text-gray-800 dark:text-zinc-200">-</span></span>
+                <div class="flex justify-between text-[9px] text-gray-500 dark:text-zinc-400 font-medium">
+                    <span id="online-count" class="font-bold text-gray-800 dark:text-zinc-200" dir="ltr">۰</span>
+                    <span id="limit-online" class="font-bold text-gray-800 dark:text-zinc-200" dir="ltr">-</span>
                 </div>
             </div>
         </div>
@@ -6034,7 +6066,7 @@ window.addEventListener('click', (e) => {
     </div>
 </div>
 <div class="flex flex-col gap-4 mt-6 z-10">
-    <div class="flex items-center gap-4 justify-center">
+    <div class="flex flex-wrap items-center gap-3 sm:gap-4 justify-center">
         <a href="https://github.com/IR-NETLIFY/zeus" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-amoled-card border border-gray-200 dark:border-amoled-border rounded-full shadow-sm hover:shadow-md transition text-sm font-bold text-gray-700 dark:text-zinc-300 hover:text-black dark:hover:text-white group">
             <svg class="w-5 h-5 group-hover:scale-110 transition" viewBox="0 0 24 24" fill="currentColor">
                 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"/>
@@ -6050,7 +6082,7 @@ window.addEventListener('click', (e) => {
         </a>
     </div>
 	
-    <div class="flex items-center gap-4 justify-center">
+    <div class="flex flex-wrap items-center gap-3 sm:gap-4 justify-center">
         <a href="https://zeus-panel.ir-netlify.workers.dev/" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-amoled-card border border-gray-200 dark:border-amoled-border rounded-full shadow-sm hover:shadow-md transition text-sm font-bold text-amber-600 dark:text-amber-400 hover:text-amber-500 dark:hover:text-amber-300 group">
             <svg class="w-5 h-5 text-amber-500 dark:text-amber-400 group-hover:scale-110 transition" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
@@ -6193,7 +6225,7 @@ window.addEventListener('click', (e) => {
                 document.getElementById('limit-vol').innerText = 'نامحدود';
                 document.getElementById('volume-pct').innerText = '۰٪';
                 document.getElementById('volume-progress').style.width = '100%';
-                document.getElementById('volume-progress').style.backgroundColor = '#2dd4bf';
+                document.getElementById('volume-progress').style.backgroundColor = '#3b82f6';
             }
             let daysRemaining = 'نامحدود';
             let totalDays = 'نامحدود';
@@ -6215,7 +6247,7 @@ window.addEventListener('click', (e) => {
             } else {
                 document.getElementById('expiry-pct').innerText = '۰٪';
                 document.getElementById('expiry-progress').style.width = '100%';
-                document.getElementById('expiry-progress').style.backgroundColor = '#14b8a6';
+                document.getElementById('expiry-progress').style.backgroundColor = '#3b82f6';
             }
             document.getElementById('days-remaining').innerText = daysRemaining === 'نامحدود' ? 'نامحدود' : daysRemaining + ' روز';
             document.getElementById('total-days').innerText = totalDays;
@@ -6235,7 +6267,7 @@ window.addEventListener('click', (e) => {
                 document.getElementById('limit-req').innerText = 'نامحدود';
                 document.getElementById('req-pct').innerText = '۰٪';
                 document.getElementById('req-progress').style.width = '100%';
-                document.getElementById('req-progress').style.backgroundColor = '#10b981';
+                document.getElementById('req-progress').style.backgroundColor = '#3b82f6';
             }
             const onlineCount = u.online_count || 0;
             document.getElementById('online-count').innerText = onlineCount;
@@ -6250,7 +6282,7 @@ window.addEventListener('click', (e) => {
                 document.getElementById('limit-online').innerText = 'نامحدود';
                 document.getElementById('online-pct').innerText = '۰٪';
                 document.getElementById('online-progress').style.width = '100%';
-                document.getElementById('online-progress').style.backgroundColor = onlineCount > 0 ? '#0ea5e9' : '#9ca3af'; 
+                document.getElementById('online-progress').style.backgroundColor = onlineCount > 0 ? '#16a34a' : '#9ca3af'; 
             }
             const statusCard = document.getElementById('status-card');
             const statusText = document.getElementById('status-text');
