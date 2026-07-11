@@ -16,7 +16,7 @@ export default {
 				};
 				const accRes = await fetch("https://api.cloudflare.com/client/v4/accounts", { headers });
 				const accData = await accRes.json();
-				if (!accData.success || accData.result.length === 0) {
+				if (!accData.success || !accData.result || accData.result.length === 0) {
 					throw new Error("فقط با دکمه نارنجی «دریافت توکن» توکن بسازید.");
 				}
 				const accountId = accData.result[0].id;
@@ -106,7 +106,7 @@ export default {
 				};
 				const accRes = await fetch("https://api.cloudflare.com/client/v4/accounts", { headers });
 				const accData = await accRes.json();
-				if (!accData.success || accData.result.length === 0) {
+				if (!accData.success || !accData.result || accData.result.length === 0) {
 					throw new Error("Account not found");
 				}
 				const accountId = accData.result[0].id;
@@ -149,6 +149,9 @@ export default {
 				const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 				const accRes = await fetch("https://api.cloudflare.com/client/v4/accounts", { headers });
 				const accData = await accRes.json();
+				if (!accData.success || !accData.result || accData.result.length === 0) {
+					throw new Error("Account not found");
+				}
 				const accountId = accData.result[0].id;
 				const contentRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${scriptName}`, { headers });
 				const contentText = await contentRes.text();
@@ -177,7 +180,7 @@ export default {
 				};
 				const accRes = await fetch("https://api.cloudflare.com/client/v4/accounts", { headers });
 				const accData = await accRes.json();
-				if (!accData.success || accData.result.length === 0) {
+				if (!accData.success || !accData.result || accData.result.length === 0) {
 					throw new Error("Account not found");
 				}
 				const accountId = accData.result[0].id;
@@ -235,7 +238,7 @@ if (request.method === "POST" && url.pathname === "/api/reset-password") {
 		};
 		const accRes = await fetch("https://api.cloudflare.com/client/v4/accounts", { headers });
 		const accData = await accRes.json();
-		if (!accData.success || accData.result.length === 0) {
+		if (!accData.success || !accData.result || accData.result.length === 0) {
 			throw new Error("Account not found");
 		}
 		const accountId = accData.result[0].id;
@@ -310,7 +313,7 @@ if (request.method === "POST" && url.pathname === "/api/reset-password") {
 				};
 				const accRes = await fetch("https://api.cloudflare.com/client/v4/accounts", { headers });
 				const accData = await accRes.json();
-				if (!accData.success || accData.result.length === 0) {
+				if (!accData.success || !accData.result || accData.result.length === 0) {
 					throw new Error("Account not found");
 				}
 				const accountId = accData.result[0].id;
