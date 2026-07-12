@@ -195,21 +195,15 @@
 
   
 
-<a  href="https://www.star-history.com/?repos=IR-NETLIFY%2Fzeus&type=timeline&legend=top-left">
 
-<picture>
 
-<source  media="(prefers-color-scheme: dark)"  srcset="https://api.star-history.com/chart?repos=IR-NETLIFY/zeus&type=timeline&theme=dark&legend=top-left&sealed_token=PfEg9mUSduw6OhRLK6oblbehsnWLswyNNhXclsnk-nmqeLsLvDf_J1g9v8jOeBkhHT7-mePG1aUNoYtBcR-Q5_EnaM1qxQnf5oIpVWIz5su_whOA2N_WAQ"  />
-
-<source  media="(prefers-color-scheme: light)"  srcset="https://api.star-history.com/chart?repos=IR-NETLIFY/zeus&type=timeline&legend=top-left&sealed_token=PfEg9mUSduw6OhRLK6oblbehsnWLswyNNhXclsnk-nmqeLsLvDf_J1g9v8jOeBkhHT7-mePG1aUNoYtBcR-Q5_EnaM1qxQnf5oIpVWIz5su_whOA2N_WAQ"  />
-
-<img  alt="Star History Chart"  src="https://api.star-history.com/chart?repos=IR-NETLIFY/zeus&type=timeline&legend=top-left&sealed_token=PfEg9mUSduw6OhRLK6oblbehsnWLswyNNhXclsnk-nmqeLsLvDf_J1g9v8jOeBkhHT7-mePG1aUNoYtBcR-Q5_EnaM1qxQnf5oIpVWIz5su_whOA2N_WAQ"  />
-
-</picture>
-
+<a href="https://www.star-history.com/?repos=IR-NETLIFY%2Fzeus&type=timeline&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=IR-NETLIFY/zeus&type=timeline&theme=dark&legend=bottom-right&sealed_token=86D7HqKpeYWTRN01SwL3e9z64VozJSl7ZCRAqLfQTRvc8BUcdow2Do1Nccam2oFsJ_QlVHcQ4rCFkdpVm5boSUkMGfhL8OC7uYNe-aXPKsoARy-_yUD5HA" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=IR-NETLIFY/zeus&type=timeline&legend=bottom-right&sealed_token=86D7HqKpeYWTRN01SwL3e9z64VozJSl7ZCRAqLfQTRvc8BUcdow2Do1Nccam2oFsJ_QlVHcQ4rCFkdpVm5boSUkMGfhL8OC7uYNe-aXPKsoARy-_yUD5HA" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=IR-NETLIFY/zeus&type=timeline&legend=bottom-right&sealed_token=86D7HqKpeYWTRN01SwL3e9z64VozJSl7ZCRAqLfQTRvc8BUcdow2Do1Nccam2oFsJ_QlVHcQ4rCFkdpVm5boSUkMGfhL8OC7uYNe-aXPKsoARy-_yUD5HA" />
+ </picture>
 </a>
-
-  
 
 ---
 
