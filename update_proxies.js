@@ -259,10 +259,9 @@ async function main() {
     
     console.log(`Fetched unique raw proxies: ${allProxies.socks5.size} SOCKS5, ${allProxies.socks4.size} SOCKS4, ${allProxies.http.size} HTTP.`);
     
-    // Limit checking to a random sample of up to 2500 proxies per protocol to prevent overloading
     const tasks = [];
     
-    const socks5Candidates = Array.from(allProxies.socks5).sort(() => 0.5 - Math.random()).slice(0, 2500);
+    const socks5Candidates = Array.from(allProxies.socks5).sort(() => 0.5 - Math.random());
     socks5Candidates.forEach(proxy => {
         tasks.push(async () => {
             const [host, portStr] = proxy.split(':');
@@ -272,7 +271,7 @@ async function main() {
         });
     });
 
-    const socks4Candidates = Array.from(allProxies.socks4).sort(() => 0.5 - Math.random()).slice(0, 2500);
+    const socks4Candidates = Array.from(allProxies.socks4).sort(() => 0.5 - Math.random());
     socks4Candidates.forEach(proxy => {
         tasks.push(async () => {
             const [host, portStr] = proxy.split(':');
@@ -282,7 +281,7 @@ async function main() {
         });
     });
 
-    const httpCandidates = Array.from(allProxies.http).sort(() => 0.5 - Math.random()).slice(0, 2500);
+    const httpCandidates = Array.from(allProxies.http).sort(() => 0.5 - Math.random());
     httpCandidates.forEach(proxy => {
         tasks.push(async () => {
             const [host, portStr] = proxy.split(':');
