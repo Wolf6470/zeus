@@ -137,9 +137,8 @@ async function replaceBrokenProxy(username, env, oldProxy) {
 		if (!isOldProxyVIP) {
 			if (upperCountry !== "ALL" && upperCountry !== "UN") {
 				sources.push({ url: `https://raw.githubusercontent.com/IR-NETLIFY/zeus/refs/heads/main/proxy/${upperCountry}.txt`, type: 'repo' });
-				sources.push({ url: `https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=socks5&country=${countryCode}&format=text`, type: 'socks5' });
 			}
-			sources.push({ url: `https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=socks5&country=all&format=text`, type: 'socks5' });
+			sources.push({ url: `https://raw.githubusercontent.com/IR-NETLIFY/zeus/refs/heads/main/proxy/ALL.txt`, type: 'repo' });
 		}
 		for (const src of sources) {
 			try {
@@ -5506,24 +5505,7 @@ async function fetchAndLoadProxy() {
     fetchBtn.disabled = true;
     try {
 		const sources = [
-			{ url: 'https://raw.githubusercontent.com/proxifly/free-proxy-list/refs/heads/main/proxies/countries/' + country.toUpperCase() + '/data.txt', prefix: '' },
-			{ url: 'https://raw.githubusercontent.com/IR-NETLIFY/zeus/refs/heads/main/proxy/' + country.toUpperCase() + '.txt', prefix: '' },
-			{ url: 'https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5&country=' + country, prefix: 'socks5://' },
-			{ url: 'https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks4&country=' + country, prefix: 'socks4://' },
-			{ url: 'https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&country=' + country, prefix: 'http://' },
-			{ url: 'https://api.proxyscrape.com/v2/?request=displayproxies&protocol=https&country=' + country, prefix: 'https://' },
-			{ url: 'https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=socks5&country=' + country, prefix: 'socks5://' },
-			{ url: 'https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=socks4&country=' + country, prefix: 'socks4://' },
-			{ url: 'https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol==http&country=' + country, prefix: 'http://' },
-			{ url: 'https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=https&country=' + country, prefix: 'https://' },
-			{ url: 'https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=socks5&country=' + country + '&format=text', prefix: 'socks5://' },
-			{ url: 'https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=socks4&country=' + country + '&format=text', prefix: 'socks4://' },
-			{ url: 'https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=http&country=' + country + '&format=text', prefix: 'http://' },
-			{ url: 'https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=https&country=' + country + '&format=text', prefix: 'https://' },
-			{ url: 'https://api.proxyscrape.com/v4/free-proxy-list/get?request=getproxies&protocol=socks5&country=' + country + '&format=text', prefix: 'socks5://' },
-			{ url: 'https://api.proxyscrape.com/v4/free-proxy-list/get?request=getproxies&protocol=socks4&country=' + country + '&format=text', prefix: 'socks4://' },
-			{ url: 'https://api.proxyscrape.com/v4/free-proxy-list/get?request=getproxies&protocol=http&country=' + country + '&format=text', prefix: 'http://' },
-			{ url: 'https://api.proxyscrape.com/v4/free-proxy-list/get?request=getproxies&protocol=https&country=' + country + '&format=text', prefix: 'https://' }
+			{ url: 'https://raw.githubusercontent.com/IR-NETLIFY/zeus/refs/heads/main/proxy/' + country.toUpperCase() + '.txt', prefix: '' }
 		];
         const responses = await Promise.allSettled(sources.map(src => 
             fetch(src.url).then(async res => {
