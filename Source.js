@@ -5235,7 +5235,7 @@ async function testUserSocksProxy() {
                 window.location.reload();
             }
         }
-const CURRENT_VERSION = '1.9.0';
+const CURRENT_VERSION = '1.9.2';
 const UPDATE_FIX = "constsCURRENT_VERSION='d.d.d'";
 		async function checkForUpdates(isManual = false) {
             try {
